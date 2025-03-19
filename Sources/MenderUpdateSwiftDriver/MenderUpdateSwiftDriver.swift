@@ -19,7 +19,7 @@ import Foundation
 import Logging
 import SystemPackage
 
-extension Logger.Level {
+private extension Logger.Level {
   var _menderLogLevel: String {
     switch self {
     case .trace:
@@ -46,7 +46,7 @@ public enum MenderUpdateError: Subprocess.TerminationStatus.Code, Error, Sendabl
   case reboot = 4
 }
 
-extension Subprocess.TerminationStatus {
+private extension Subprocess.TerminationStatus {
   func throwOnError() throws {
     guard !isSuccess else { return }
     switch self {
