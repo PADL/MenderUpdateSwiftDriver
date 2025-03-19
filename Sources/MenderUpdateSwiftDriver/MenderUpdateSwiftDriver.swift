@@ -166,4 +166,20 @@ public actor MenderUpdateSwiftDriver {
     let process = try await Subprocess.run(.at(_binaryPath), arguments: arguments)
     try process.terminationStatus.throwOnError()
   }
+
+  public func install(url: URL, stoppingBefore state: State? = nil) async throws {
+    try await execute(command: .install(url), stoppingBefore: state)
+  }
+
+  public func commit(stoppingBefore state: State? = nil) async throws {
+    try await execute(command: .commit, stoppingBefore: state)
+  }
+
+  public func resume(stoppingBefore state: State? = nil) async throws {
+    try await execute(command: .resume, stoppingBefore: state)
+  }
+
+  public func rollback(stoppingBefore state: State? = nil) async throws {
+    try await execute(command: .rollback, stoppingBefore: state)
+  }
 }
