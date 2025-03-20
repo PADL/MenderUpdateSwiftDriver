@@ -62,9 +62,7 @@ private extension Subprocess.TerminationStatus {
   }
 }
 
-public actor MenderUpdateSwiftDriver {
-  public let shared = MenderUpdateSwiftDriver()
-
+public struct MenderUpdateSwiftDriver: Sendable {
   public enum State: Equatable, Sendable {
     case ArtifactInstall_Enter
     case ArtifactCommit_Enter
