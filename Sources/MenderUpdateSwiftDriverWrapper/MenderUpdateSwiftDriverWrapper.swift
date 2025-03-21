@@ -57,6 +57,10 @@ public actor MenderUpdateSwiftDriverWrapper {
       usage(CommandLine.arguments[0])
     }
 
-    try await driver.execute(command: command)
+    do {
+      try await driver.execute(command: command)
+    } catch {
+      print("error: \(error)")
+    }
   }
 }

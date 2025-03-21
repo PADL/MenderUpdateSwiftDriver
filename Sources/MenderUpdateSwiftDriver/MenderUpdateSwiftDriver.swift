@@ -40,21 +40,46 @@ private extension Logger.Level {
   }
 }
 
-public enum MenderUpdateError: Subprocess.TerminationStatus.Code, Error, Sendable {
-  case couldNotFulfillRequest = 1
-  case noUpdateInProgress = 2
-  case reboot = 4
+public struct MenderUpdateError: Error, Sendable {
+  public enum Code: Subprocess.TerminationStatus.Code, Sendable {
+    case couldNotFulfillRequest = 1
+    case noUpdateInProgress = 2
+    case reboot = 4
+  }
+
+  public let code: Code
+  public let info: String?
+
+  fileprivate init(code: Code, info: Data? = nil) {
+    self.code = code
+    if let info {
+      self.info = String(data: info, encoding: .utf8)
+    } else {
+      self.info = nil
+    }
+  }
+
+  fileprivate init?(rawValue code: Subprocess.TerminationStatus.Code, info: Data? = nil) {
+    guard let code = Code(rawValue: code) else {
+      return nil
+    }
+    self.init(code: code, info: info)
+  }
+
+  fileprivate static let couldNotFulfillRequest = Self(code: .couldNotFulfillRequest)
+  fileprivate static let noUpdateInProgress = Self(code: .noUpdateInProgress)
+  fileprivate static let reboot = Self(code: .reboot)
 }
 
-private extension Subprocess.TerminationStatus {
+private extension Subprocess.CollectedResult {
   func throwOnError() throws {
-    guard !isSuccess else { return }
-    switch self {
+    guard !terminationStatus.isSuccess else { return }
+    switch terminationStatus.self {
     case let .exited(code):
-      if let menderUpdateError = MenderUpdateError(rawValue: code) {
+      if let menderUpdateError = MenderUpdateError(rawValue: code, info: standardError) {
         throw menderUpdateError
       } else {
-        throw MenderUpdateError.couldNotFulfillRequest
+        throw MenderUpdateError(code: .couldNotFulfillRequest, info: standardError)
       }
     case .unhandledException:
       throw MenderUpdateError.couldNotFulfillRequest
@@ -162,7 +187,7 @@ public struct MenderUpdateSwiftDriver: Sendable {
   package func execute(command: Command, stoppingBefore state: State? = nil) async throws {
     let arguments = _menderUpdateArguments(command: command, stoppingBefore: state)
     let process = try await Subprocess.run(.at(_binaryPath), arguments: arguments)
-    try process.terminationStatus.throwOnError()
+    try process.throwOnError()
   }
 
   public func install(url: URL, stoppingBefore state: State? = nil) async throws {
