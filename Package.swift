@@ -15,6 +15,10 @@ let package = Package(
       name: "MenderUpdateSwiftDriver",
       targets: ["MenderUpdateSwiftDriver"]
     ),
+    .executable(
+      name: "mender-update-swift-driver",
+      targets: ["MenderUpdateSwiftDriverWrapper"]
+    ),
   ],
   dependencies: [
     .package(url: "https://github.com/apple/swift-system", from: "1.4.0"),
@@ -44,6 +48,10 @@ let package = Package(
       swiftSettings: [
         .swiftLanguageMode(.v5),
       ]
+    ),
+    .executableTarget(
+      name: "MenderUpdateSwiftDriverWrapper",
+      dependencies: ["MenderUpdateSwiftDriver"]
     ),
     .testTarget(
       name: "MenderUpdateSwiftDriverTests",

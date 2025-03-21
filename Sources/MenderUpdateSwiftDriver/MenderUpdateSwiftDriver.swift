@@ -159,7 +159,7 @@ public struct MenderUpdateSwiftDriver: Sendable {
     _binaryPath = binaryPath
   }
 
-  public func execute(command: Command, stoppingBefore state: State? = nil) async throws {
+  package func execute(command: Command, stoppingBefore state: State? = nil) async throws {
     let arguments = _menderUpdateArguments(command: command, stoppingBefore: state)
     let process = try await Subprocess.run(.at(_binaryPath), arguments: arguments)
     try process.terminationStatus.throwOnError()
