@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-import _Subprocess
 import Foundation
 import Logging
+import Subprocess
 import SystemPackage
 
 private extension Logger.Level {
@@ -50,16 +50,12 @@ public struct MenderUpdateError: Error, Sendable {
   public let code: Code
   public let info: String?
 
-  fileprivate init(code: Code, info: Data? = nil) {
+  fileprivate init(code: Code, info: String? = nil) {
     self.code = code
-    if let info {
-      self.info = String(data: info, encoding: .utf8)
-    } else {
-      self.info = nil
-    }
+    self.info = info
   }
 
-  fileprivate init?(rawValue code: Subprocess.TerminationStatus.Code, info: Data? = nil) {
+  fileprivate init?(rawValue code: Subprocess.TerminationStatus.Code, info: String? = nil) {
     guard let code = Code(rawValue: code) else {
       return nil
     }
@@ -71,7 +67,9 @@ public struct MenderUpdateError: Error, Sendable {
   fileprivate static let reboot = Self(code: .reboot)
 }
 
-private extension Subprocess.CollectedResult {
+private extension Subprocess.CollectedResult where Output == StringOutput<UTF8>,
+  Error == StringOutput<UTF8>
+{
   func throwOnError() throws {
     guard !terminationStatus.isSuccess else { return }
     switch terminationStatus.self {
@@ -186,7 +184,12 @@ public struct MenderUpdateSwiftDriver: Sendable {
 
   package func execute(command: Command, stoppingBefore state: State? = nil) async throws {
     let arguments = _menderUpdateArguments(command: command, stoppingBefore: state)
-    let process = try await Subprocess.run(.at(_binaryPath), arguments: arguments)
+    let process = try await Subprocess.run(
+      .path(_binaryPath),
+      arguments: arguments,
+      output: .string,
+      error: .string
+    )
     try process.throwOnError()
   }
 
