@@ -187,8 +187,8 @@ public struct MenderUpdateSwiftDriver: Sendable {
     let process = try await Subprocess.run(
       .path(_binaryPath),
       arguments: arguments,
-      output: .string,
-      error: .string
+      output: .string(limit: Int(BUFSIZ)),
+      error: .string(limit: Int(BUFSIZ)),
     )
     try process.throwOnError()
   }
