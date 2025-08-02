@@ -17,7 +17,11 @@
 import Foundation
 import Logging
 import Subprocess
+#if canImport(System)
+import System
+#elseif canImport(SystemPackage)
 import SystemPackage
+#endif
 
 private extension Logger.Level {
   var _menderLogLevel: String {
