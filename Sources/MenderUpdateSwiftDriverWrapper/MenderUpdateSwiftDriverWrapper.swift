@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2025 PADL Software Pty Ltd
+// Copyright (c) 2025-2026 PADL Software Pty Ltd
 //
 // Licensed under the Apache License, Version 2.0 (the License);
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ func usage(_ argv0: String) -> Never {
 
 @main
 public actor MenderUpdateSwiftDriverWrapper {
-  public static func main() async throws {
+  public static func main() async {
     guard CommandLine.arguments.count >= 2 else {
       usage(CommandLine.arguments[0])
     }
