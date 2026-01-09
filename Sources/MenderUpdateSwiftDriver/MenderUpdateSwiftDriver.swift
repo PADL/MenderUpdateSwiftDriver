@@ -76,7 +76,7 @@ private extension Subprocess.CollectedResult where Output == StringOutput<UTF8>,
 {
   func throwOnError() throws {
     guard !terminationStatus.isSuccess else { return }
-    switch terminationStatus.self {
+    switch terminationStatus {
     case let .exited(code):
       if let menderUpdateError = MenderUpdateError(rawValue: code, info: standardError) {
         throw menderUpdateError
@@ -192,7 +192,7 @@ public struct MenderUpdateSwiftDriver: Sendable {
       .path(_binaryPath),
       arguments: arguments,
       output: .string(limit: Int(BUFSIZ)),
-      error: .string(limit: Int(BUFSIZ)),
+      error: .string(limit: Int(BUFSIZ))
     )
     try process.throwOnError()
   }
