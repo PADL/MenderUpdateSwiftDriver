@@ -149,7 +149,7 @@ public struct MenderUpdateSwiftDriver: Sendable {
       if let config { arguments += ["--config", config] }
       if let fallbackConfig { arguments += ["--fallback-config", fallbackConfig] }
       if let dataStore { arguments += ["--datastore", dataStore] }
-      arguments += ["--log-file", logLevel._menderLogLevel]
+      arguments += ["--log-level", logLevel._menderLogLevel]
       if let trustedCerts { arguments += ["--trusted-certs", trustedCerts] }
       if skipVerify { arguments += ["--skipverify"] }
 
