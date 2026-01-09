@@ -175,7 +175,11 @@ public struct MenderUpdateSwiftDriver: Sendable {
     }
 
     if let state {
-      arguments += ["-stop-before", String(describing: state)]
+      arguments += ["--stop-before", String(describing: state)]
+    }
+
+    if case let .install(artifact) = command {
+      arguments += [artifact.absoluteString]
     }
 
     return .init(arguments)
