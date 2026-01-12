@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+import AsyncAlgorithms
 import Foundation
 import Logging
 import Subprocess
@@ -42,6 +43,25 @@ private extension Logger.Level {
       "fatal"
     }
   }
+
+  init?(_menderLogLevel: String) {
+    switch _menderLogLevel {
+    case "trace":
+      self = .trace
+    case "debug":
+      self = .debug
+    case "info":
+      self = .info
+    case "warning":
+      self = .warning
+    case "error":
+      self = .error
+    case "fatal":
+      self = .critical
+    default:
+      return nil
+    }
+  }
 }
 
 public struct MenderUpdateError: Error, Sendable {
@@ -51,41 +71,125 @@ public struct MenderUpdateError: Error, Sendable {
     case reboot = 4
   }
 
-  public let code: Code
-  public let info: String?
+  public struct LogMessage: Sendable {
+    public let recordID: UInt
+    public let severity: Logger.Level
+    public let time: Date
+    public let name: String
+    public let message: String
 
-  fileprivate init(code: Code, info: String? = nil) {
-    self.code = code
-    self.info = info
+    fileprivate func _log(with logger: Logger) {
+      logger.log(
+        level: severity,
+        "\(message)",
+        metadata: [
+          "MENDER_RECORD_ID": "\(recordID)",
+          "MENDER_TIMESTAMP": "\(time)",
+          "MENDER_NAME": "\(name)",
+        ]
+      )
+    }
+
+    private init(
+      recordID: UInt,
+      severity: Logger.Level,
+      time: Date,
+      name: String,
+      message: String
+    ) {
+      self.recordID = recordID
+      self.severity = severity
+      self.time = time
+      self.name = name
+      self.message = message
+    }
+
+    private static func _parseKeyValuePairs(from line: String) -> [String: String] {
+      var result = [String: String]()
+      var remaining = line[...]
+
+      while !remaining.isEmpty {
+        guard let equalsIndex = remaining.firstIndex(of: "=") else { break }
+        let key = String(remaining[..<equalsIndex])
+        remaining = remaining[remaining.index(after: equalsIndex)...]
+
+        let value: String
+        if remaining.first == "\"" {
+          remaining = remaining.dropFirst()
+          guard let endQuoteIndex = remaining.firstIndex(of: "\"") else { break }
+          value = String(remaining[..<endQuoteIndex])
+          remaining = remaining[remaining.index(after: endQuoteIndex)...]
+          if remaining.first == " " {
+            remaining = remaining.dropFirst()
+          }
+        } else {
+          if let spaceIndex = remaining.firstIndex(of: " ") {
+            value = String(remaining[..<spaceIndex])
+            remaining = remaining[remaining.index(after: spaceIndex)...]
+          } else {
+            value = String(remaining)
+            remaining = ""
+          }
+        }
+
+        result[key] = value
+      }
+
+      return result
+    }
+
+    fileprivate init?(parsing line: String) {
+      let pairs = Self._parseKeyValuePairs(from: line)
+
+      guard let recordIDString = pairs["record_id"],
+            let recordID = UInt(recordIDString),
+            let severityString = pairs["severity"],
+            let severity = Logger.Level(_menderLogLevel: severityString),
+            let timeString = pairs["time"],
+            let name = pairs["name"],
+            let message = pairs["msg"]
+      else {
+        return nil
+      }
+
+      let formatter = DateFormatter()
+      formatter.dateFormat = "yyyy-MMM-dd HH:mm:ss.SSSSSS"
+      formatter.locale = Locale(identifier: "en_US_POSIX")
+      guard let time = formatter.date(from: timeString) else {
+        return nil
+      }
+
+      self.init(recordID: recordID, severity: severity, time: time, name: name, message: message)
+    }
   }
 
-  fileprivate init?(rawValue code: Subprocess.TerminationStatus.Code, info: String? = nil) {
+  public let code: Code
+  public let message: String?
+  public let logMessages: [LogMessage]
+
+  fileprivate init(code: Code, message: String? = nil, logMessages: [LogMessage] = []) {
+    self.code = code
+    self.message = message
+    self.logMessages = logMessages
+  }
+
+  fileprivate init?(
+    rawValue code: Subprocess.TerminationStatus.Code,
+    message: String? = nil,
+    logMessages: [LogMessage] = []
+  ) {
     guard let code = Code(rawValue: code) else {
       return nil
     }
-    self.init(code: code, info: info)
+    self.init(code: code, message: message, logMessages: logMessages)
   }
 
   fileprivate static let couldNotFulfillRequest = Self(code: .couldNotFulfillRequest)
   fileprivate static let noUpdateInProgress = Self(code: .noUpdateInProgress)
   fileprivate static let reboot = Self(code: .reboot)
-}
 
-private extension Subprocess.CollectedResult where Output == StringOutput<UTF8>,
-  Error == StringOutput<UTF8>
-{
-  func throwOnError() throws {
-    guard !terminationStatus.isSuccess else { return }
-    switch terminationStatus {
-    case let .exited(code):
-      if let menderUpdateError = MenderUpdateError(rawValue: code, info: standardError) {
-        throw menderUpdateError
-      } else {
-        throw MenderUpdateError(code: .couldNotFulfillRequest, info: standardError)
-      }
-    case .unhandledException:
-      throw MenderUpdateError.couldNotFulfillRequest
-    }
+  public func log(with logger: Logger) {
+    logMessages.forEach { $0._log(with: logger) }
   }
 }
 
@@ -160,10 +264,10 @@ public struct MenderUpdateSwiftDriver: Sendable {
   private let _binaryPath: FilePath
   private let _options: Options
 
-  private func _menderUpdateArguments(
+  private func _menderUpdateArgumentsArray(
     command: Command,
     stoppingBefore state: State? = nil
-  ) -> Subprocess.Arguments {
+  ) -> [String] {
     // mender-update [global options] command [command options] [arguments...]
 
     var arguments: [String] = _options._menderUpdateArguments + [command._menderUpdateCommand]
@@ -182,7 +286,14 @@ public struct MenderUpdateSwiftDriver: Sendable {
       arguments += [artifact.absoluteString]
     }
 
-    return .init(arguments)
+    return arguments
+  }
+
+  private func _menderUpdateArguments(
+    command: Command,
+    stoppingBefore state: State? = nil
+  ) -> Subprocess.Arguments {
+    .init(_menderUpdateArgumentsArray(command: command, stoppingBefore: state))
   }
 
   public init(options: Options = .init(), binaryPath: FilePath = "/usr/bin/mender-update") {
@@ -190,19 +301,74 @@ public struct MenderUpdateSwiftDriver: Sendable {
     _binaryPath = binaryPath
   }
 
-  package func execute(command: Command, stoppingBefore state: State? = nil) async throws {
+  package func execute(
+    command: Command,
+    stoppingBefore state: State? = nil,
+    progressCallback: (@Sendable (Int) -> ())? = nil
+  ) async throws {
     let arguments = _menderUpdateArguments(command: command, stoppingBefore: state)
+
     let process = try await Subprocess.run(
       .path(_binaryPath),
       arguments: arguments,
-      output: .string(limit: Int(BUFSIZ)),
-      error: .string(limit: Int(BUFSIZ))
-    )
-    try process.throwOnError()
+      // Use a small buffer size (3 bytes minimum for "\rD%") to enable
+      // real-time progress updates by forcing frequent pipe reads
+      preferredBufferSize: progressCallback != nil ? 3 : nil
+    ) { _, _, output, error in
+      var logMessages = [MenderUpdateError.LogMessage]()
+
+      for try await line in error.lines() {
+        let line = line.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !line.isEmpty else { continue }
+
+        if line.last == "%", let progress = Int(line.dropLast()) {
+          progressCallback?(progress)
+        } else if let logMessage = MenderUpdateError.LogMessage(parsing: line) {
+          logMessages.append(logMessage)
+        }
+      }
+
+      let output = try await [String](
+        output.lines()
+          .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      ).first
+
+      return (output, logMessages)
+    }
+
+    guard process.terminationStatus.isSuccess else {
+      switch process.terminationStatus {
+      case let .exited(code):
+        if let menderUpdateError = MenderUpdateError(
+          rawValue: code,
+          message: process.value.0,
+          logMessages: process.value.1
+        ) {
+          throw menderUpdateError
+        } else {
+          throw MenderUpdateError(
+            code: .couldNotFulfillRequest,
+            message: process.value.0,
+            logMessages: process.value.1
+          )
+        }
+      case .unhandledException:
+        throw MenderUpdateError.couldNotFulfillRequest
+      }
+    }
   }
 
-  public func install(url: URL, stoppingBefore state: State? = nil) async throws {
-    try await execute(command: .install(url), stoppingBefore: state)
+  public func install(
+    url: URL,
+    stoppingBefore state: State? = nil,
+    progressCallback: (@Sendable (Int) -> ())? = nil
+  ) async throws {
+    try await execute(
+      command: .install(url),
+      stoppingBefore: state,
+      progressCallback: progressCallback
+    )
   }
 
   public func commit(stoppingBefore state: State? = nil) async throws {

@@ -37,6 +37,7 @@ public actor MenderUpdateSwiftDriverWrapper {
 
     let driver = MenderUpdateSwiftDriver()
     let command: MenderUpdateSwiftDriver.Command
+    var progressCallback: (@Sendable (Int) -> ())?
 
     switch CommandLine.arguments[1] {
     case "install":
@@ -47,6 +48,12 @@ public actor MenderUpdateSwiftDriverWrapper {
       }
 
       command = .install(url)
+
+      progressCallback = { @Sendable _ in
+        if let data = ".".data(using: .utf8) {
+          try? FileHandle.standardOutput.write(contentsOf: data)
+        }
+      }
     case "commit":
       command = .commit
     case "resume":
@@ -58,7 +65,10 @@ public actor MenderUpdateSwiftDriverWrapper {
     }
 
     do {
-      try await driver.execute(command: command)
+      try await driver.execute(command: command, progressCallback: progressCallback)
+      if progressCallback != nil {
+        print() // Print newline after installation completes
+      }
     } catch {
       print("error: \(error)")
     }
