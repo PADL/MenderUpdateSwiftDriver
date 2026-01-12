@@ -21,8 +21,9 @@ let package = Package(
     ),
   ],
   dependencies: [
-    .package(url: "https://github.com/apple/swift-system", from: "1.4.0"),
+    .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.1.1"),
     .package(url: "https://github.com/apple/swift-log", from: "1.6.2"),
+    .package(url: "https://github.com/apple/swift-system", from: "1.4.0"),
     .package(url: "https://github.com/swiftlang/swift-subprocess", from: "0.2.1"),
   ],
   targets: [
@@ -31,9 +32,10 @@ let package = Package(
     .target(
       name: "MenderUpdateSwiftDriver",
       dependencies: [
+        .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+        .product(name: "Logging", package: "swift-log"),
         .product(name: "Subprocess", package: "swift-subprocess"),
         .product(name: "SystemPackage", package: "swift-system"),
-        .product(name: "Logging", package: "swift-log"),
       ]
     ),
     .executableTarget(
