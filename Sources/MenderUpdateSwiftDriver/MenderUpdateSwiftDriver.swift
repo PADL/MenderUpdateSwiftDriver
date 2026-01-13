@@ -263,6 +263,7 @@ public struct MenderUpdateSwiftDriver: Sendable {
 
   private let _binaryPath: FilePath
   private let _options: Options
+  private let _logger: Logger?
 
   private func _menderUpdateArgumentsArray(
     command: Command,
@@ -296,9 +297,14 @@ public struct MenderUpdateSwiftDriver: Sendable {
     .init(_menderUpdateArgumentsArray(command: command, stoppingBefore: state))
   }
 
-  public init(options: Options = .init(), binaryPath: FilePath = "/usr/bin/mender-update") {
+  public init(
+    options: Options = .init(),
+    binaryPath: FilePath = "/usr/bin/mender-update",
+    logger: Logger? = nil
+  ) {
     _options = options
     _binaryPath = binaryPath
+    _logger = logger
   }
 
   package func execute(
@@ -325,6 +331,7 @@ public struct MenderUpdateSwiftDriver: Sendable {
         if line.last == "%", let progress = Int(line.dropLast()) {
           progressCallback?(progress)
         } else if let logMessage = MenderUpdateError.LogMessage(parsing: line) {
+          if let _logger { logMessage._log(with: _logger) }
           logMessages.append(logMessage)
         }
       }
