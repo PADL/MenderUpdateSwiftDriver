@@ -280,7 +280,11 @@ public struct MenderUpdateSwiftDriver: Sendable {
     }
 
     if case let .install(artifact) = command {
-      arguments += [artifact.absoluteString]
+      if artifact.isFileURL {
+        arguments += [artifact.path]
+      } else {
+        arguments += [artifact.absoluteString]
+      }
     }
 
     return arguments
