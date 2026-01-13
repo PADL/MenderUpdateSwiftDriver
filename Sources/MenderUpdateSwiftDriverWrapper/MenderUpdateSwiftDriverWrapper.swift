@@ -15,6 +15,7 @@
 //
 
 import Foundation
+import Logging
 import MenderUpdateSwiftDriver
 
 // a simple wrapper to exercise the library
@@ -35,7 +36,12 @@ public actor MenderUpdateSwiftDriverWrapper {
       usage(CommandLine.arguments[0])
     }
 
-    let driver = MenderUpdateSwiftDriver()
+    LoggingSystem.bootstrap { StreamLogHandler.standardError(label: $0) }
+
+    var logger = Logger(label: "com.padl.MenderUpdateSwiftDriverWrapper")
+    logger.logLevel = .debug
+
+    let driver = MenderUpdateSwiftDriver(options: .init(logLevel: logger.logLevel), logger: logger)
     let command: MenderUpdateSwiftDriver.Command
     var progressCallback: (@Sendable (Int) -> ())?
 
