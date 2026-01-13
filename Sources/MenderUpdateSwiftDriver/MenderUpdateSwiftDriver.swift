@@ -187,10 +187,6 @@ public struct MenderUpdateError: Error, Sendable {
   fileprivate static let couldNotFulfillRequest = Self(code: .couldNotFulfillRequest)
   fileprivate static let noUpdateInProgress = Self(code: .noUpdateInProgress)
   fileprivate static let reboot = Self(code: .reboot)
-
-  public func log(with logger: Logger) {
-    logMessages.forEach { $0._log(with: logger) }
-  }
 }
 
 public struct MenderUpdateSwiftDriver: Sendable {
