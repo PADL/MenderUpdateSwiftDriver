@@ -23,7 +23,7 @@ import MenderUpdateSwiftDriver
 func usage(_ argv0: String) -> Never {
   print(
     """
-    Usage: \(argv0) [install <url>|commit|resume|rollback]
+    Usage: \(argv0) [install <url>|commit|resume|rollback|show-artifact|show-provides]
     """
   )
   exit(2)
@@ -42,38 +42,40 @@ public actor MenderUpdateSwiftDriverWrapper {
     logger.logLevel = .debug
 
     let driver = MenderUpdateSwiftDriver(options: .init(logLevel: logger.logLevel), logger: logger)
-    let command: MenderUpdateSwiftDriver.Command
-    var progressCallback: (@Sendable (Int) -> ())?
-
-    switch CommandLine.arguments[1] {
-    case "install":
-      guard CommandLine.arguments.count >= 3,
-            let url = URL(string: CommandLine.arguments[2])
-      else {
-        usage(CommandLine.arguments[0])
-      }
-
-      command = .install(url)
-
-      progressCallback = { @Sendable _ in
-        if let data = ".".data(using: .utf8) {
-          try? FileHandle.standardOutput.write(contentsOf: data)
-        }
-      }
-    case "commit":
-      command = .commit
-    case "resume":
-      command = .resume
-    case "rollback":
-      command = .rollback
-    default:
-      usage(CommandLine.arguments[0])
-    }
 
     do {
-      try await driver.execute(command: command, progressCallback: progressCallback)
-      if progressCallback != nil {
+      switch CommandLine.arguments[1] {
+      case "install":
+        guard CommandLine.arguments.count >= 3,
+              let url = URL(string: CommandLine.arguments[2])
+        else {
+          usage(CommandLine.arguments[0])
+        }
+
+        let progressCallback = { @Sendable (_: Int) in
+          if let data = ".".data(using: .utf8) {
+            try? FileHandle.standardOutput.write(contentsOf: data)
+          }
+        }
+
+        try await driver.install(url: url, progressCallback: progressCallback)
         print() // Print newline after installation completes
+      case "commit":
+        try await driver.commit()
+      case "resume":
+        try await driver.resume()
+      case "rollback":
+        try await driver.rollback()
+      case "show-artifact":
+        let artifact = try await driver.showArtifact()
+        print(artifact)
+      case "show-provides":
+        let provides = try await driver.showProvides()
+        for line in provides {
+          print(line)
+        }
+      default:
+        usage(CommandLine.arguments[0])
       }
     } catch {
       print("error: \(error)")

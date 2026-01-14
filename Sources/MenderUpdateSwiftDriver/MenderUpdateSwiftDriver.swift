@@ -204,6 +204,8 @@ public struct MenderUpdateSwiftDriver: Sendable {
     case commit
     case resume
     case rollback
+    case showArtifact
+    case showProvides
 
     fileprivate var _menderUpdateCommand: String {
       switch self {
@@ -215,6 +217,10 @@ public struct MenderUpdateSwiftDriver: Sendable {
         "resume"
       case .rollback:
         "rollback"
+      case .showArtifact:
+        "show-artifact"
+      case .showProvides:
+        "show-provides"
       }
     }
   }
@@ -307,11 +313,12 @@ public struct MenderUpdateSwiftDriver: Sendable {
     _logger = logger
   }
 
-  package func execute(
+  @discardableResult
+  private func _execute(
     command: Command,
     stoppingBefore state: State? = nil,
     progressCallback: (@Sendable (Int) -> ())? = nil
-  ) async throws {
+  ) async throws -> [String] {
     let arguments = _menderUpdateArguments(command: command, stoppingBefore: state)
 
     let process = try await Subprocess.run(
@@ -339,7 +346,8 @@ public struct MenderUpdateSwiftDriver: Sendable {
       let output = try await [String](
         output.lines()
           .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-      ).first
+          .filter { !$0.isEmpty }
+      )
 
       return (output, logMessages)
     }
@@ -349,14 +357,14 @@ public struct MenderUpdateSwiftDriver: Sendable {
       case let .exited(code):
         if let menderUpdateError = MenderUpdateError(
           rawValue: code,
-          message: process.value.0,
+          message: process.value.0.first,
           logMessages: process.value.1
         ) {
           throw menderUpdateError
         } else {
           throw MenderUpdateError(
             code: .couldNotFulfillRequest,
-            message: process.value.0,
+            message: process.value.0.first,
             logMessages: process.value.1
           )
         }
@@ -364,6 +372,8 @@ public struct MenderUpdateSwiftDriver: Sendable {
         throw MenderUpdateError.couldNotFulfillRequest
       }
     }
+
+    return process.value.0
   }
 
   public func install(
@@ -371,7 +381,7 @@ public struct MenderUpdateSwiftDriver: Sendable {
     stoppingBefore state: State? = nil,
     progressCallback: (@Sendable (Int) -> ())? = nil
   ) async throws {
-    try await execute(
+    try await _execute(
       command: .install(url),
       stoppingBefore: state,
       progressCallback: progressCallback
@@ -379,14 +389,22 @@ public struct MenderUpdateSwiftDriver: Sendable {
   }
 
   public func commit(stoppingBefore state: State? = nil) async throws {
-    try await execute(command: .commit, stoppingBefore: state)
+    try await _execute(command: .commit, stoppingBefore: state)
   }
 
   public func resume(stoppingBefore state: State? = nil) async throws {
-    try await execute(command: .resume, stoppingBefore: state)
+    try await _execute(command: .resume, stoppingBefore: state)
   }
 
   public func rollback(stoppingBefore state: State? = nil) async throws {
-    try await execute(command: .rollback, stoppingBefore: state)
+    try await _execute(command: .rollback, stoppingBefore: state)
+  }
+
+  public func showArtifact() async throws -> String {
+    try await _execute(command: .showArtifact).first ?? ""
+  }
+
+  public func showProvides() async throws -> [String] {
+    try await _execute(command: .showProvides)
   }
 }
