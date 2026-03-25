@@ -368,7 +368,7 @@ public struct MenderUpdateSwiftDriver: Sendable {
             logMessages: process.value.1
           )
         }
-      case .unhandledException:
+      default:
         throw MenderUpdateError.couldNotFulfillRequest
       }
     }
