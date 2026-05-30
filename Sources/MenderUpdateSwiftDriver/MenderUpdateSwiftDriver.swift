@@ -321,16 +321,16 @@ public struct MenderUpdateSwiftDriver: Sendable {
   ) async throws -> [String] {
     let arguments = _menderUpdateArguments(command: command, stoppingBefore: state)
 
-    let process = try await Subprocess.run(
+    let result = try await Subprocess.run(
       .path(_binaryPath),
       arguments: arguments,
-      // Use a small buffer size (3 bytes minimum for "\rD%") to enable
-      // real-time progress updates by forcing frequent pipe reads
-      preferredBufferSize: progressCallback != nil ? 3 : nil
-    ) { _, _, output, error in
+      input: .none,
+      output: .sequence,
+      error: .sequence
+    ) { execution in
       var logMessages = [MenderUpdateError.LogMessage]()
 
-      for try await line in error.lines() {
+      for try await line in execution.standardError.strings() {
         let line = line.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !line.isEmpty else { continue }
@@ -344,7 +344,7 @@ public struct MenderUpdateSwiftDriver: Sendable {
       }
 
       let output = try await [String](
-        output.lines()
+        execution.standardOutput.strings()
           .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
           .filter { !$0.isEmpty }
       )
@@ -352,20 +352,20 @@ public struct MenderUpdateSwiftDriver: Sendable {
       return (output, logMessages)
     }
 
-    guard process.terminationStatus.isSuccess else {
-      switch process.terminationStatus {
+    guard result.terminationStatus.isSuccess else {
+      switch result.terminationStatus {
       case let .exited(code):
         if let menderUpdateError = MenderUpdateError(
           rawValue: code,
-          message: process.value.0.first,
-          logMessages: process.value.1
+          message: result.closureOutput.0.first,
+          logMessages: result.closureOutput.1
         ) {
           throw menderUpdateError
         } else {
           throw MenderUpdateError(
             code: .couldNotFulfillRequest,
-            message: process.value.0.first,
-            logMessages: process.value.1
+            message: result.closureOutput.0.first,
+            logMessages: result.closureOutput.1
           )
         }
       default:
@@ -373,7 +373,7 @@ public struct MenderUpdateSwiftDriver: Sendable {
       }
     }
 
-    return process.value.0
+    return result.closureOutput.0
   }
 
   public func install(
